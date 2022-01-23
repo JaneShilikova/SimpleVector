@@ -55,8 +55,8 @@ public:
 
     SimpleVector(SimpleVector&& other) :
         vec_(std::move(other.vec_)),
-		size_(std::exchange(other.size_, 0)),
-		capacity_(std::exchange(other.capacity_, 0)) { }
+        size_(std::exchange(other.size_, 0)),
+        capacity_(std::exchange(other.capacity_, 0)) { }
 
     SimpleVector& operator=(const SimpleVector& rhs) {
         if (rhs != *this) {
