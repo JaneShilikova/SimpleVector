@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <cstdlib>
 
@@ -7,12 +8,7 @@ public:
     ArrayPtr() noexcept = default;
 
     explicit ArrayPtr(size_t size) {
-        if (size == 0) {
-            raw_ptr_ = nullptr;
-        }
-        else {
-            raw_ptr_ = new Type[size]{};
-        }
+        (size == 0) ? raw_ptr_ = nullptr : raw_ptr_ = new Type[size]{};
     }
 
     explicit ArrayPtr(Type* raw_ptr) noexcept {
@@ -61,9 +57,7 @@ public:
     }
 
     void swap(ArrayPtr& other) noexcept {
-        auto temp = raw_ptr_;
-        raw_ptr_ = other.raw_ptr_;
-        other.raw_ptr_ = temp;
+        std::swap(raw_ptr_, other.raw_ptr_);
     }
 
 private:

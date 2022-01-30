@@ -115,49 +115,44 @@ public:
 
     void Reserve(size_t new_capacity) {
         if (new_capacity > capacity_) {
-            auto cur_size = size_;
-            SimpleVector<Type> temp(new_capacity);
-            std::move(begin(), end(), &temp[0]);
-            swap(temp);
-            size_ = cur_size;
+            auto new_items = ReallocateCopy(new_capacity);
+            vec_.swap(new_items);
             capacity_ = new_capacity;
         }
     }
 
     void PushBack(const Type& item) {
-        if (capacity_ == 0) {
-            Reserve(1);
-            vec_[0] = item;
+        auto new_size = size_ + 1;
+
+        if (new_size > capacity_) {
+            auto new_capacity = std::max(new_size, 2 * capacity_);
+            auto new_items = ReallocateCopy(new_capacity);
+            new_items[size_] = item;
+            vec_.swap(new_items);
+            capacity_ = new_capacity;
         }
         else {
-            if (size_ < capacity_) {
-                vec_[size_] = item;
-            }
-            else {
-                Reserve(size_ * 2);
-                vec_[size_] = item;
-            }
+            vec_[size_] = item;
         }
 
-        ++size_;
+        size_ = new_size;
     }
 
     void PushBack(Type&& item) {
-        if (capacity_ == 0) {
-            Reserve(1);
-            vec_[0] = std::move(item);
+        auto new_size = size_ + 1;
+
+        if (new_size > capacity_) {
+            auto new_capacity = std::max(new_size, 2 * capacity_);
+            auto new_items = ReallocateCopy(new_capacity);
+            new_items[size_] = std::move(item);
+            vec_.swap(new_items);
+            capacity_ = new_capacity;
         }
         else {
-            if (size_ < capacity_) {
-                vec_[size_] = std::move(item);
-            }
-            else {
-                Reserve(size_ * 2);
-                vec_[size_] = std::move(item);
-            }
+            vec_[size_] = std::move(item);
         }
 
-        ++size_;
+        size_ = new_size;
     }
 
     void PopBack() noexcept {
@@ -167,45 +162,51 @@ public:
     }
 
     Iterator Insert(ConstIterator pos, const Type& value) {
+        assert(pos >= begin() && pos <= end());
+        auto new_size = size_ + 1;
         size_t pos_distance = std::distance(cbegin(), pos);
+        Iterator mutable_pos = begin() + pos_distance;
 
-        if (capacity_ == 0) {
-            Reserve(1);
+        if (new_size <= capacity_) {
+              std::copy_backward(mutable_pos, end(), end() + 1);
+               vec_[pos_distance] = value;
         }
         else {
-            if (size_ < capacity_) {
-                std::move_backward(&vec_[pos_distance], end(), &vec_[size_ + 1]);
-            }
-            else {
-                Reserve(size_ * 2);
-                std::move_backward(&vec_[pos_distance], end(), &vec_[size_ + 1]);
-            }
+               auto new_capacity = std::max(new_size, 2 * capacity_);
+               ArrayPtr<Type> temp(new_capacity);
+               std::copy(begin(), mutable_pos, temp.Get());
+               temp[pos_distance] = value;
+               std::copy(mutable_pos, end(), temp.Get() + pos_distance + 1);
+               vec_.swap(temp);
+               capacity_ = new_capacity;
         }
 
-        vec_[pos_distance] = value;
-        ++size_;
-        return &vec_[pos_distance];
+        size_ = new_size;
+        return begin() + pos_distance;
     }
 
     Iterator Insert(ConstIterator pos, Type&& value) {
+        assert(pos >= begin() && pos <= end());
+        auto new_size = size_ + 1;
         size_t pos_distance = std::distance(cbegin(), pos);
+        Iterator mutable_pos = begin() + pos_distance;
 
-        if (capacity_ == 0) {
-            Reserve(1);
+        if (new_size <= capacity_) {
+            std::move_backward(mutable_pos, end(), end() + 1);
+            vec_[pos_distance] = std::move(value);
         }
         else {
-            if (size_ < capacity_) {
-                std::move_backward(&vec_[pos_distance], end(), &vec_[size_ + 1]);
-            }
-            else {
-                Reserve(size_ * 2);
-                std::move_backward(&vec_[pos_distance], end(), &vec_[size_ + 1]);
-            }
+            auto new_capacity = std::max(new_size, 2 * capacity_);
+            ArrayPtr<Type> temp(new_capacity);
+            std::move(begin(), mutable_pos, temp.Get());
+            temp[pos_distance] = std::move(value);
+            std::move(mutable_pos, end(), temp.Get() + pos_distance + 1);
+            vec_.swap(temp);
+            capacity_ = new_capacity;
         }
 
-        vec_[pos_distance] = std::move(value);
-        ++size_;
-        return &vec_[pos_distance];
+        size_ = new_size;
+        return begin() + pos_distance;
     }
 
     Iterator Erase(ConstIterator pos) {
@@ -226,21 +227,19 @@ public:
     }
 
     void Resize(size_t new_size) {
-        if (new_size <= size_) {
-            size_ = new_size;
+        if (new_size > capacity_) {
+            auto new_capacity = std::max(new_size, 2 * capacity_);
+            auto new_items = ReallocateCopy(new_size);
+            FillWithDefaultValue(new_items.Get() + size_, new_items.Get() + new_size);
+            vec_.swap(new_items);
+            capacity_ = new_capacity;
         }
         else {
-            if (new_size <= capacity_) {
+            if (new_size >= size_)
                 FillWithDefaultValue(vec_.Get() + size_, vec_.Get() + new_size);
-                size_ = new_size;
-            }
-            else {
-                //new_size > capacity_
-                Reserve(new_size);
-                FillWithDefaultValue(vec_.Get() + size_, vec_.Get() + new_size);
-                size_ = new_size;
-            }
         }
+
+        size_ = new_size;
     }
 
     Iterator begin() noexcept {
@@ -265,6 +264,14 @@ public:
 
     ConstIterator cend() const noexcept {
         return vec_.Get() + size_;
+    }
+
+private:
+    ArrayPtr<Type> ReallocateCopy(size_t new_capacity) {
+        ArrayPtr<Type> temp(new_capacity);
+        size_t move_size = std::min(new_capacity, size_);
+        std::move(begin(), begin() + move_size, &temp[0]);
+        return ArrayPtr<Type>(temp.Release());
     }
 
 private:
