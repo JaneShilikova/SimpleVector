@@ -168,17 +168,17 @@ public:
         Iterator mutable_pos = begin() + pos_distance;
 
         if (new_size <= capacity_) {
-              std::copy_backward(mutable_pos, end(), end() + 1);
-               vec_[pos_distance] = value;
+            std::copy_backward(mutable_pos, end(), end() + 1);
+            vec_[pos_distance] = value;
         }
         else {
-               auto new_capacity = std::max(new_size, 2 * capacity_);
-               ArrayPtr<Type> temp(new_capacity);
-               std::copy(begin(), mutable_pos, temp.Get());
-               temp[pos_distance] = value;
-               std::copy(mutable_pos, end(), temp.Get() + pos_distance + 1);
-               vec_.swap(temp);
-               capacity_ = new_capacity;
+            auto new_capacity = std::max(new_size, 2 * capacity_);
+            ArrayPtr<Type> temp(new_capacity);
+            std::copy(begin(), mutable_pos, temp.Get());
+            temp[pos_distance] = value;
+            std::copy(mutable_pos, end(), temp.Get() + pos_distance + 1);
+            vec_.swap(temp);
+            capacity_ = new_capacity;
         }
 
         size_ = new_size;
